@@ -25,4 +25,11 @@
 
   # import is a file dependency, not a call — no edge in round one
   module = import ./plain.nix;
+
+  # a MISSING relative target: captured, unresolved, no edge — disclosed, never guessed
+  ghost = import ./nope.nix;
+
+  # the NIX_PATH floor: an <nixpkgs> spath is an angle include resolved against the evaluator's
+  # environment, never this tree
+  pkgs = import <nixpkgs> { };
 }

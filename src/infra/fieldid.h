@@ -68,7 +68,7 @@ namespace rw
 enum class NodeField : std::uint8_t
 {
     Alias, Alternative, Argument, Arguments, Attribute,
-    Body, Captures, Condition, Consequence, Constructor,
+    Attrpath, Body, Captures, Condition, Consequence, Constructor,
     Declaration, Declarator, DefaultValue, Definition, Directive,
     Expression, Field, Formals, Function, Initializer, Key, Left,
     Method, ModuleName, Name, Object, Operand, Operator,
@@ -95,7 +95,7 @@ struct NodeFieldName
 
 inline constexpr std::array<NodeFieldName, kNodeFieldCount> kNodeFieldNames = { {
     { NodeField::Alias, "alias", 5 },                 { NodeField::Alternative, "alternative", 11 },    { NodeField::Argument, "argument", 8 },
-    { NodeField::Arguments, "arguments", 9 },         { NodeField::Attribute, "attribute", 9 },         { NodeField::Body, "body", 4 },
+    { NodeField::Arguments, "arguments", 9 },         { NodeField::Attribute, "attribute", 9 },         { NodeField::Attrpath, "attrpath", 8 },           { NodeField::Body, "body", 4 },
     { NodeField::Captures, "captures", 8 },           { NodeField::Condition, "condition", 9 },         { NodeField::Consequence, "consequence", 11 },
     { NodeField::Constructor, "constructor", 11 },    { NodeField::Declaration, "declaration", 11 },    { NodeField::Declarator, "declarator", 10 },
     { NodeField::DefaultValue, "default_value", 13 }, { NodeField::Definition, "definition", 10 },      { NodeField::Directive, "directive", 9 },

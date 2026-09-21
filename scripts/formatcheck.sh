@@ -42,6 +42,7 @@ WANT_MAJOR=22
 # ─── the gated set: files that already match .clang-format exactly ────────────────────────────
 read -r -d '' GATED << 'GATED_EOF' || true
 src/graphlegend.h
+src/ingest_nix.h
 src/infra/csrverify.h
 src/infra/hashutil.h
 src/infra/namesplit.h

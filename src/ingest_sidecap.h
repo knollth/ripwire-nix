@@ -1404,9 +1404,9 @@ void captureSideFacts( const LangEntry& le, std::uint32_t fileId, std::string_vi
         }
 #endif
 
-        if( le.lang != Lang::Elixir )
+        if( le.lang != Lang::Elixir && le.lang != Lang::Nix )
         {
-            captureIncludes( root, le.lang, fileId, src, incs, refs, binds, constOpens, shortfall );   // Elixir directives share the lexical tags context below.
+            captureIncludes( root, le.lang, fileId, src, incs, refs, binds, constOpens, shortfall );   // Elixir directives share the lexical tags context below; Nix's own walker is nixPrepare.
         }
         captureJsImportFacts( root, le.lang, fileId, src, binds );
 
@@ -1591,6 +1591,7 @@ void captureTagsFacts( TSQueryCursor* cursor, const LangEntry& le, std::uint32_t
     ElixirContext elixir;
     elixir.shortfall = &shortfall;
     if( le.lang == Lang::Elixir ) { elixir.prepare( cursor, query, root, src, fileId, binds, includes, refs ); }
+    if( le.lang == Lang::Nix ) { nixPrepare( root, fileId, src, includes, refs, shortfall ); }   // file dependencies: import ./x, imports = [ … ]
 
     // extent honesty: the recovered-bit walk (parseRecoveredBits) only exists in a file the parser had to recover.
     const bool fileHasError = ts_node_has_error( root );

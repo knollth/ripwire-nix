@@ -249,7 +249,13 @@ constexpr std::uint32_t kCacheVersion = 24;           // 24: RawRef gains `viaAr
                                                       //    (Py `pkg.mod`, TS `./x`, Rust `crate::a::b`/`mod:x`) —
                                                       //    a target FORMAT change → old caches must be rejected.
                                                       // 4: Include gained a `bool isAngle` (quote/angle) field
-constexpr std::uint32_t kParserVer    = 120;          // bump on any grammar/.scm/extraction change
+constexpr std::uint32_t kParserVer    = 121;          // bump on any grammar/.scm/extraction change
+                                                      // 121 = 2026-09-21 (Nix import round, test/nixcheck.sh):
+                                                      //    dependencyCapable(Nix) now TRUE — import ./x.nix and
+                                                      //    the module-system imports = [ ... ] list emit
+                                                      //    Include/RawRef records (nixPrepare), so the dep_files=
+                                                      //    denominator and the include adjacency GROW on any
+                                                      //    tree holding Nix. v120 blobs must be rejected.
                                                       // 120 = 2026-09-21 (Nix, test/nixcheck.sh): a
                                                       //    twenty-sixth grammar (.nix) whose defs and call edges
                                                       //    are extracted through queries/nix/tags.scm with the

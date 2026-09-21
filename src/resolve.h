@@ -168,7 +168,7 @@ inline std::string lexicalNormalize( std::string_view path )
 // The import dialect a file's imports resolve in, keyed off its extension. C-family covers the quote
 // `#include`; Other (Swift/Java/C#/PHP/Markdown/…) never precise-resolves (deferred / no path in import).
 // Bash/Ruby/Lua/Elixir joined at kParserVer 81 — see their Step-As below.
-enum class IncludeLang : std::uint8_t { CFamily, Python, Ts, Rust, Go, Bash, Ruby, Lua, Elixir, Other };
+enum class IncludeLang : std::uint8_t { CFamily, Python, Ts, Rust, Go, Bash, Ruby, Lua, Elixir, Nix, Other };
 
 // extension → dialect, a declarative constexpr table (NOT a scattered if-chain). Extension includes the
 // leading dot; the classifier lowercases nothing (source extensions are lowercase by convention here).
@@ -201,6 +201,8 @@ inline IncludeLang includeLangOf( std::string_view path ) noexcept
         { ".rb",  IncludeLang::Ruby },
         { ".lua", IncludeLang::Lua },
         { ".ex",  IncludeLang::Elixir },  { ".exs", IncludeLang::Elixir },
+        { ".nix", IncludeLang::Nix },     // path literals resolve relative to the importer; <nixpkgs> spaths
+                                          // and ~/ hpaths floor by rule (resolveNixImport)
         // B6.2: `.cs` has NO entry here — it falls through to IncludeLang::Other below, DEFERRED like
         // Java (also absent) and Swift/Go-single-root: a C# namespace does not map 1:1 onto a file (one
         // namespace spans many files, one file can hold several namespaces), so there is no sound
@@ -1450,6 +1452,26 @@ inline std::uint32_t resolveElixirModule( std::string_view target, const HashMap
     return it->second;
 }
 
+// Nix (kParserVer 120): a dependency target is ALWAYS a path literal captured from the source (see
+// ingest_nix.h's nixPrepare — `import ./x.nix` and the module-system's `imports = [ … ]` list), so the
+// resolver is the C quote-include rule: join the importer's directory, normalize, look the exact file up.
+// Two shapes floor BY RULE rather than by miss, so the site discloses the same way an unresolvable
+// `#include <vector>` does: `~/…` hpaths are home-rooted (outside the crawl), and `<nixpkgs>` spaths are
+// NIX_PATH lookups resolved against the evaluator's environment, not this tree — the isAngle bit they
+// carry is what keeps them visibly external rather than silently dropped. An absolute `/nix/store/…`
+// literal misses joinNormalizeLookup and lands on the same kNoFile, which is the honest answer: the
+// target file is real but not part of this corpus.
+inline std::uint32_t resolveNixImport( std::string_view includerPath, std::string_view target,
+                                       const HashMap<std::string, std::uint32_t>& fileIndex,
+                                       const WsIncludeCtx* ws = nullptr, std::uint32_t includerFileId = kNoFile )
+{
+    if( target.empty() || target.front() == '~' || target.front() == '<' )
+    {
+        return kNoFile;
+    }
+    return joinNormalizeLookup( includerDir( includerPath ), target, fileIndex, ws, includerFileId );
+}
+
 // The Elixir module index (kParserVer 81): `defmodule MyApp.Foo` → the file that holds it. Built from the
 // corpus's OWN definitions, never from a name→path convention — see resolveElixirModule for why. A module
 // two files define is tombstoned `kNoFile - 1` (ambiguous ⇒ no edge), the same unique-or-degrade rule every
@@ -1844,6 +1866,7 @@ inline std::uint32_t resolvePreciseInclude( std::string_view includerPath, std::
         case IncludeLang::Ruby:   return resolveRubyRequire( includerPath, target, fileIndex, ws, includerFileId );
         case IncludeLang::Lua:    return resolveLuaRequire(  includerPath, target, fileIndex, ws, includerFileId );
         case IncludeLang::Elixir: return resolveElixirModule( target, moduleIndex );
+        case IncludeLang::Nix:    return resolveNixImport( includerPath, target, fileIndex, ws, includerFileId );
         case IncludeLang::Other:  return kNoFile;        // Swift (no path in import) → deferred
     }
     return kNoFile;

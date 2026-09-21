@@ -281,6 +281,53 @@ its base are unrelated in the graph and `--uses` on the base reports no `role="e
 GDScript extraction landed at revision 98 — `kParserVer` in `src/ingest_cache.h`, mirrored by
 `kIngestParserVerMirror` in `src/quality.h`; snapshot scheme is unchanged.
 
+<a id="nix-extraction"></a>
+
+Nix extraction is built around the fact that a `.nix` FILE IS ONE EXPRESSION and the grammar's
+structural unit is the `binding` (`name = expression ;`) — the SAME node inside `{ }`, `rec { }`,
+`let { }` and `let … in`, so one capture pattern covers every definition spelling.
+`queries/nix/tags.scm` captures every last-attr identifier of a binding as
+`@definition.constant`; `ingest_nix.h` reclassifies a binding whose value is a
+`function_expression` to `t="fn"` (the callable population) and leaves the rest `t="var"` (data) —
+the same module-scope rule Python applies to `NAME = value`. Attrpath anchors handle the grammar's
+unnamed `.` separator tokens explicitly, and the LAST attr is the name calls bind to:
+`options.host.caddy.enable` names `enable` and nothing else.
+
+Three hooks carry the language-specific shapes, each mirrored on an Elixir/Dart precedent:
+`nixBody` (a binding's body is its `expression:` field — without it every definition span stops at
+the attrpath), `nixParams` (a bare `universal` identifier is one parameter, a `formals` pattern
+counts its `formal` children with `...` excluded; a curried chain answers for its FIRST
+application, which is the arity the call `f x` binds against), and `nixKeepCapture` (module
+scope: a data binding is a symbol when its ancestor chain crosses AT MOST the file's own root
+lambda — `{ ... }: { ... }` is the dominant module shape and its returned attrset IS the module —
+while a lambda-valued binding stays a callable at any depth, the Lua `M.f` precedent; a call
+inside a declined local attributes to the enclosing function, the honest caller). A bare `import`
+head is declined as a call by the same hook — it is a file dependency, not a symbol named import.
+
+File dependencies (`kParserVer` 120): Nix's two directive spellings are `import ./x.nix` and the
+module system's `imports = [ ./a ./b.nix ]` list. `ingest_nix.h`'s `nixPrepare` walks the whole
+tree (bounded, degrading at the shared depth bound) and emits both as Include records sited on the
+PATH node; `resolve.h`'s `resolveNixImport` is the C quote-include rule — join the importer's
+directory, normalize, exact lookup. `dependencyCapable(Lang::Nix)` is claimed from that round on:
+the `dep_files=` denominator and the include adjacency grow with every `.nix` file. The floors are
+stated, not implied: `<nixpkgs>` spaths are NIX_PATH lookups outside the tree (captured as angle
+includes, resolved to nothing — the same visible disclosure as an unresolvable `#include
+<vector>`), `~/…` hpaths are home-rooted, a computed path (`./. + "/x"`, `"${./x}/y"`) either
+carries no path node or one whose text names no file, a MISSING relative target is captured and
+unresolved, and dynamic dispatch — `callPackage ./x { }` above all, the standard idiom — binds no
+name at the syntax level, so `--callers` on such a callee reads "none found", never "none
+exists". A deeply nested data binding inside a mid-function lambda is a local, not a module
+symbol; the `test/nixcheck.sh` fixture asserts both the decline and the edge re-attribution.
+
+THE FLOOR, measured before vendoring (STEP 0 of prompts/add-a-language.md): 100.00% of 43,338
+real `.nix` files parse clean — the full nixpkgs tree, measured from its read-only store copy.
+No grammar gap is patched (guardrail G3); the tree is vendored at
+`17f290c8b5104d9aba8a1ba7383a2ca83c3d14c4`.
+
+Nix extraction landed at revisions 119 (grammar and bindings) and 120 (file dependencies) —
+`kParserVer` in `src/ingest_cache.h`, mirrored by `kIngestParserVerMirror` in `src/quality.h`;
+snapshot scheme is unchanged.
+
 The three config lanes are *data*, not code: they emit `t="sec"` symbols and **zero call edges**, and
 `langCompatible` keeps a config key from ever resolving a same-spelled code symbol. They differ in
 where the navigable unit sits. JSON cuts at document depth — top-level and second-level object

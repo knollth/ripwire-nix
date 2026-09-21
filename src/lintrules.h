@@ -256,12 +256,13 @@ inline bool dependencyCapable( Lang lang ) noexcept
         case Lang::Java: case Lang::CSharp: case Lang::Php:
         case Lang::Bash: case Lang::Ruby: case Lang::Lua: case Lang::Elixir:
         case Lang::Kotlin:
+        case Lang::Nix:
+            // Nix, kParserVer 120: `import ./x.nix` and the module-system's `imports = [ … ]` list are
+            // path-literal directives (ingest_nix.h's nixPrepare), resolved relative to the importer —
+            // the same sound string→fileId rule the C quote-include has.
             return true;
         case Lang::Dart:   // no import capture yet — see the DART paragraph above
         case Lang::GDScript:   // no preload/load capture yet — the same paragraph
-        case Lang::Nix:        // no import capture yet — `import ./x.nix` is the next round
-                               // (prompts/add-a-language.md STEP 5); claiming it now would make
-                               // the dep_files= denominator lie
         case Lang::Json: case Lang::Toml: case Lang::Yaml: case Lang::Markdown: case Lang::Unknown:
             return false;
     }
@@ -288,7 +289,7 @@ inline bool dependencyCapable( Lang lang ) noexcept
 // file genuinely imports a Java class and vice versa in a mixed Android/JVM module (graph.h's
 // langCompatible bridges the two for the same reason on the call-graph side) — a separate Kotlin dialect
 // would report a real cross-language import pair as "not defined" instead of "found none".
-enum class DepDialect : std::uint8_t { None = 0, CFamily, Web, Python, Rust, Go, Swift, Java, CSharp, Php, Bash, Ruby, Lua, Elixir };
+enum class DepDialect : std::uint8_t { None = 0, CFamily, Web, Python, Rust, Go, Swift, Java, CSharp, Php, Bash, Ruby, Lua, Elixir, Nix };
 
 /// Return the dependency dialect of a language, or DepDialect::None when it carries no file dependency.
 inline DepDialect dependencyDialect( Lang lang ) noexcept
@@ -308,9 +309,9 @@ inline DepDialect dependencyDialect( Lang lang ) noexcept
         case Lang::Ruby:                                return DepDialect::Ruby;
         case Lang::Lua:                                 return DepDialect::Lua;
         case Lang::Elixir:                              return DepDialect::Elixir;
+        case Lang::Nix:                                 return DepDialect::Nix;
         case Lang::Dart:                                // not dependency-capable (dependencyCapable's DART paragraph)
         case Lang::GDScript:                            // not dependency-capable (the same paragraph)
-        case Lang::Nix:                                 // not dependency-capable yet (the same paragraph)
         case Lang::Json: case Lang::Toml: case Lang::Yaml: case Lang::Markdown: case Lang::Unknown:
                                                         return DepDialect::None;
     }

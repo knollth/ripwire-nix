@@ -28,6 +28,8 @@ expected = {
     'usesMkTitle': 'var', # data binding whose value calls mkTitle — the honest caller
     'callPkg': 'var',     # callPackage ./missing.nix — a value, and its head is NOT an edge
     'module': 'var',      # import ./plain.nix — a value; import is NOT a call symbol
+    'ghost': 'var',       # import ./nope.nix — a value; the missing target is a deps floor
+    'pkgs': 'var',        # import <nixpkgs> { } — a value; the NIX_PATH floor
     'answer': 'var',      # plain.nix: the file root is data, the file is the module unit
     'invokes': 'var',     # cross-file call by bare name
     'localFn': 'fn',      # a nested function inside the root data file is still a callable
@@ -118,6 +120,25 @@ printf 'let\n  x = { a = 1;\n' > "$TMP/broken/broken.nix"
 "$BIN" "$TMP/broken" --no-cache > "$TMP/broken.xml"
 python3 -c 'import sys, xml.etree.ElementTree as ET; ET.parse(sys.argv[1])' "$TMP/broken.xml"
 echo '  PASS malformed file does not crash and stays well-formed XML'
+
+# ---- file dependencies: resolved, missing, and NIX_PATH floors
+"$BIN" "$TMP/fix" --no-cache --deps > "$TMP/deps.xml"
+python3 - "$TMP/deps.xml" <<'PYDEPS'
+import sys, xml.etree.ElementTree as ET
+r = ET.parse(sys.argv[1]).getroot()
+assert 'nix' in r.find('health').get('dep_langs'), 'nix missing from the dep_langs denominator'
+files = {f.get('p'): f for f in r.iter('f')}
+mod = files['mod.nix']
+assert mod.get('includes') == '3', mod.attrib                # plain.nix + nope.nix + <nixpkgs>
+incs = {i.get('t'): i for i in mod.iter('inc')}
+assert './plain.nix' in incs and './nope.nix' in incs and '<nixpkgs>' in incs, set(incs)
+# the NIX_PATH spath is captured (isAngle internally) but resolves to nothing — the same visible
+# disclosure as an unresolvable `#include <vector>`: an inc row with no file row behind it
+plain = files['plain.nix']
+assert plain.get('afferent') == '1', plain.attrib            # the ONE resolved edge lands
+assert files.get('nope.nix') is None, 'a missing target materialized a file row'
+print('  PASS file dependencies: resolved edge, missing target, and the NIX_PATH angle tier')
+PYDEPS
 
 # ---- doctor loads the full grammar roster
 PATH="$(cd "$(dirname "$BIN")" && pwd):$PATH" "$BIN" "$TMP/fix" --doctor > "$TMP/doctor.xml"

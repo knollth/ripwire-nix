@@ -1989,7 +1989,10 @@ inline std::string cacheRootKeyHex( const std::string& root )
 // not include this header; it relies on ingest.cpp including quality.h (line 13) before ingest_cache.h, and a reorder
 // that broke that fails the build on the undeclared name rather than passing.
 constexpr std::uint32_t kIngestCacheVersionMirror   = 24;   // MUST equal ingest.cpp's kCacheVersion (gated)
-constexpr std::uint32_t kIngestParserVerMirror    = 120;  // MUST equal ingest.cpp's kParserVer   (gated)
+constexpr std::uint32_t kIngestParserVerMirror    = 121;  // MUST equal ingest.cpp's kParserVer   (gated)
+                                                          // 121 = 2026-09-21 (Nix import round): dependencyCapable(Nix)
+                                                          //    flips TRUE and nixPrepare emits file dependencies. 120 was
+                                                          //    the grammar itself. See ingest_cache.h's kParserVer note.
                                                           // 120 = 2026-09-21 (Nix): a twenty-sixth grammar and its
                                                           //    definition/call extraction. See ingest_cache.h's kParserVer note.
                                                           // 119 = 2026-09-20 (T13/fix3): queries/java + queries/kotlin

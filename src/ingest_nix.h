@@ -62,7 +62,7 @@ bool nixBodyIsFunction( TSNode defNode ) noexcept
 /// the enclosing function, which is the honest caller), while a FUNCTION-valued binding stays a
 /// callable at any depth (the Lua `M.f` precedent — a nested named function is a callable wherever it
 /// is written). References: a bare `import` head is declined — `import ./x.nix` is a file dependency,
-/// not a call to a symbol named "import", and ingest.cpp::captureIncludes owns it (round two).
+/// not a call to a symbol named "import", and nixPrepare below owns it.
 bool nixKeepCapture( TSNode role, TSNode name, bool isDef, SymKind kind, std::string_view src ) noexcept
 {
     (void)name;
@@ -71,10 +71,9 @@ bool nixKeepCapture( TSNode role, TSNode name, bool isDef, SymKind kind, std::st
         if( std::strcmp( ts_node_type( role ), "apply_expression" ) == 0 )
         {
             const TSNode head = fieldChild( role, NodeField::Function );
-            if( !ts_node_is_null( head ) && std::strcmp( ts_node_type( head ), "variable_expression" ) == 0
-                && nodeTextOf( fieldChild( head, NodeField::Name ), src ) == "import" )
+            if( !ts_node_is_null( head ) && std::strcmp( ts_node_type( head ), "variable_expression" ) == 0 && nodeTextOf( fieldChild( head, NodeField::Name ), src ) == "import" )
             {
-                return false;   // `import ./x.nix` is a file dependency, not a call — round two owns it
+                return false; // `import ./x.nix` is a file dependency, not a call — nixPrepare owns it
             }
         }
         return true;
@@ -87,7 +86,7 @@ bool nixKeepCapture( TSNode role, TSNode name, bool isDef, SymKind kind, std::st
         // mid-function lambda's returned structure: a local, not a module symbol. Zero lambdas means
         // the file's root is data and the file itself is the module unit.
         TSNode firstFn = {};
-        TSNode lastFn  = {};
+        TSNode lastFn = {};
         for( TSNode p = ts_node_parent( role ); !ts_node_is_null( p ); p = ts_node_parent( p ) )
         {
             if( std::strcmp( ts_node_type( p ), "function_expression" ) == 0 )
@@ -99,6 +98,129 @@ bool nixKeepCapture( TSNode role, TSNode name, bool isDef, SymKind kind, std::st
         return ts_node_is_null( firstFn ) || ts_node_eq( firstFn, lastFn );
     }
     return true;
+}
+
+// ── file dependencies (round two) ───────────────────────────────────────────────────────────────────
+// Nix has no import statement with a module name; a file dependency is a PATH LITERAL in the source:
+//   import ./x.nix            — an apply whose head is the bare `import` and whose argument is a path
+//   imports = [ ./a ./b.nix ] — the module-system list: a binding named `imports` holding path literals
+// Both resolve RELATIVE TO THE IMPORTING FILE (resolve.h's joinNormalizeLookup, the C quote-include
+// rule; test/nixcheck.sh). The floors stay the ones queries/nix/tags.scm states: `<nixpkgs>` spaths
+// are NIX_PATH lookups outside the repo (captured as angle includes, resolved to nothing — the same
+// disclosure an unresolvable `#include <vector>` gets), `~/...` hpaths are home-rooted, and a computed
+// path (`./. + "/x"`, `"${./x}/y"`) either carries no path node or carries one whose text names no
+// file — captured, unresolved, disclosed, never guessed.
+
+/// Return node when it is a path-literal node, or a null node for anything else. A plain identifier is
+/// a VARIABLE (an indirection this tool cannot see through); a string is a computed path. Both floor.
+TSNode nixPathNode( TSNode n ) noexcept
+{
+    if( ts_node_is_null( n ) ) { return {}; }
+    const char* t = ts_node_type( n );
+    if( std::strcmp( t, "path_expression" ) == 0 || std::strcmp( t, "hpath_expression" ) == 0 || std::strcmp( t, "spath_expression" ) == 0 )
+    {
+        return n;
+    }
+    return {};
+}
+
+/// One file-dependency site: the Include record plus its import-role use-site ref, both sited on the
+/// PATH node (the thing that names the file — for a list element that is the element, not the binding).
+void nixEmitDependency( TSNode path, std::uint32_t fileId, std::string_view src, std::vector<Include>& includes,
+                        std::vector<RawRef>& refs )
+{
+    std::string target( nodeTextOf( path, src ) );
+    RawRef r;
+    r.fileId = fileId;
+    r.startByte = ts_node_start_byte( path );
+    r.line = ts_node_start_point( path ).row + 1;
+    r.role = RefRole::Import;
+    r.lang = Lang::Nix;
+    r.name = importName( target );
+    if( !r.name.empty() ) { refs.push_back( std::move( r ) ); }
+    Include inc;
+    inc.fileId = fileId;
+    inc.isAngle = std::strcmp( ts_node_type( path ), "spath_expression" ) == 0; // <nixpkgs>: the angle tier
+    inc.byte = ts_node_start_byte( path );
+    inc.target = std::move( target );
+    includes.push_back( std::move( inc ) );
+}
+
+/// Walk a Nix tree and emit every file-dependency site. A bounded explicit-stack pre-order over ALL
+/// named nodes — imports live anywhere a binding or an apply does (the module shape puts `imports = [
+/// … ]` inside the root lambda's returned attrset), so unlike the allowlisted container walks there is
+/// no descent table to maintain. Exceeding the shared depth bound DEGRADES — deeper sites are simply
+/// not captured, the file still indexes — exactly like captureIncludes' bound.
+void nixPrepare( TSNode root, std::uint32_t fileId, std::string_view src, std::vector<Include>& includes,
+                 std::vector<RawRef>& refs, ExtractShortfall& shortfall )
+{
+    struct NixFrame
+    {
+        TSNode node;
+        std::uint16_t depth;
+    };
+    std::vector<NixFrame> stack;
+    stack.reserve( 64 );
+    stack.push_back( { root, 0 } );
+    ChildCursor cursor( root );
+    std::vector<TSNode> kids;
+    kids.reserve( 64 );
+    while( !stack.empty() )
+    {
+        const NixFrame frame = stack.back();
+        stack.pop_back();
+        if( frame.depth > 256 )
+        {
+            DISCLOSE( shortfall, ExtractShortfall::DisclosureWhy::ImportNestingTooDeep,
+                      "ingest: nix tree nesting past the depth bound — deeper imports not captured" );
+            continue;
+        }
+        const TSNode n = frame.node;
+        const char* t = ts_node_type( n );
+        if( std::strcmp( t, "apply_expression" ) == 0 )
+        {
+            // `import ./x.nix` — the head must be the BARE `import` variable; `lib.import ./x` is a
+            // call to some function named import, not the keyword
+            const TSNode head = fieldChild( n, NodeField::Function );
+            if( !ts_node_is_null( head ) && std::strcmp( ts_node_type( head ), "variable_expression" ) == 0 && nodeTextOf( fieldChild( head, NodeField::Name ), src ) == "import" )
+            {
+                const TSNode arg = fieldChild( n, NodeField::Argument );
+                if( const TSNode path = nixPathNode( arg ); !ts_node_is_null( path ) )
+                {
+                    nixEmitDependency( path, fileId, src, includes, refs );
+                }
+            }
+        }
+        else if( std::strcmp( t, "binding" ) == 0 )
+        {
+            // `imports = [ ./a ./b.nix ]` — the module-system's one list spelling. Only the exact name
+            // `imports` (the LAST attr: `host.imports` is some other thing's data), and only a LIST
+            // value: a bare `imports = ./x` is that attrset's own data binding, not the module system.
+            // NOTE: no early-out here — every branch must fall through to the descend below, because
+            // the import applies this walker exists for sit INSIDE binding values.
+            const TSNode ap = fieldChild( n, NodeField::Attrpath );
+            const TSNode last = ts_node_is_null( ap ) ? TSNode {} : ts_node_named_child( ap, ts_node_named_child_count( ap ) - 1 );
+            if( !ts_node_is_null( last ) && std::strcmp( ts_node_type( last ), "identifier" ) == 0 && nodeTextOf( last, src ) == "imports" )
+            {
+                const TSNode value = fieldChild( n, NodeField::Expression );
+                if( !ts_node_is_null( value ) && std::strcmp( ts_node_type( value ), "list_expression" ) == 0 )
+                {
+                    for( std::uint32_t i = 0; i < ts_node_named_child_count( value ); ++i )
+                    {
+                        if( const TSNode path = nixPathNode( ts_node_named_child( value, i ) ); !ts_node_is_null( path ) )
+                        {
+                            nixEmitDependency( path, fileId, src, includes, refs );
+                        }
+                    }
+                }
+            }
+        }
+        collectChildren( n, cursor.cur, kids );
+        for( std::size_t i = kids.size(); i > 0; --i )
+        {
+            stack.push_back( { kids[i - 1], static_cast<std::uint16_t>( frame.depth + 1 ) } );
+        }
+    }
 }
 
 } // namespace
