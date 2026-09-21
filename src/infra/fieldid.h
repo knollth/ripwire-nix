@@ -70,11 +70,11 @@ enum class NodeField : std::uint8_t
     Alias, Alternative, Argument, Arguments, Attribute,
     Body, Captures, Condition, Consequence, Constructor,
     Declaration, Declarator, DefaultValue, Definition, Directive,
-    Field, Function, Initializer, Key, Left,
+    Expression, Field, Formals, Function, Initializer, Key, Left,
     Method, ModuleName, Name, Object, Operand, Operator,
     Parameter, Parameters, Path, Pattern, Property,
     Receiver, Right, Scope, Source, Subject,
-    Superclasses, Target, Trait, Type, Update,
+    Superclasses, Target, Trait, Type, Universal, Update,
     Value,
     Op,
     Count
@@ -99,7 +99,8 @@ inline constexpr std::array<NodeFieldName, kNodeFieldCount> kNodeFieldNames = { 
     { NodeField::Captures, "captures", 8 },           { NodeField::Condition, "condition", 9 },         { NodeField::Consequence, "consequence", 11 },
     { NodeField::Constructor, "constructor", 11 },    { NodeField::Declaration, "declaration", 11 },    { NodeField::Declarator, "declarator", 10 },
     { NodeField::DefaultValue, "default_value", 13 }, { NodeField::Definition, "definition", 10 },      { NodeField::Directive, "directive", 9 },
-    { NodeField::Field, "field", 5 },                 { NodeField::Function, "function", 8 },           { NodeField::Initializer, "initializer", 11 },
+    { NodeField::Expression, "expression", 10 },      { NodeField::Field, "field", 5 },                 { NodeField::Formals, "formals", 7 },
+    { NodeField::Function, "function", 8 },           { NodeField::Initializer, "initializer", 11 },
     { NodeField::Key, "key", 3 },                     { NodeField::Left, "left", 4 },                   { NodeField::Method, "method", 6 },
     { NodeField::ModuleName, "module_name", 11 },     { NodeField::Name, "name", 4 },                   { NodeField::Object, "object", 6 },
     { NodeField::Operand, "operand", 7 },             { NodeField::Operator, "operator", 8 },           { NodeField::Parameter, "parameter", 9 },
@@ -107,7 +108,7 @@ inline constexpr std::array<NodeFieldName, kNodeFieldCount> kNodeFieldNames = { 
     { NodeField::Property, "property", 8 },           { NodeField::Receiver, "receiver", 8 },           { NodeField::Right, "right", 5 },
     { NodeField::Scope, "scope", 5 },                 { NodeField::Source, "source", 6 },               { NodeField::Subject, "subject", 7 },
     { NodeField::Superclasses, "superclasses", 12 },  { NodeField::Target, "target", 6 },               { NodeField::Trait, "trait", 5 },
-    { NodeField::Type, "type", 4 },                   { NodeField::Update, "update", 6 },               { NodeField::Value, "value", 5 },
+    { NodeField::Type, "type", 4 },                   { NodeField::Universal, "universal", 9 },         { NodeField::Update, "update", 6 },               { NodeField::Value, "value", 5 },
     { NodeField::Op, "op", 2 },
 } };
 

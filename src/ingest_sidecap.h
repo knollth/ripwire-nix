@@ -1733,6 +1733,19 @@ void captureTagsFacts( TSQueryCursor* cursor, const LangEntry& le, std::uint32_t
             {
                 continue;
             }
+            if( le.lang == Lang::Nix )
+            {
+                // reclassify BEFORE the keep gate: a lambda-valued binding is a callable (kept at any
+                // depth), while the keep gate declines only DATA bindings nested inside a lambda body
+                if( isDef && kind == SymKind::Var && nixBodyIsFunction( roleNode ) )
+                {
+                    kind = SymKind::Function;
+                }
+                if( !nixKeepCapture( roleNode, nameNode, isDef, kind, src ) )
+                {
+                    continue;
+                }
+            }
             if( le.lang == Lang::Elixir && refCapSv == "reference.bare" )
             {
                 // Bare pipe targets have their own capture; every other bare name needs lexical variable exclusion.
@@ -1764,7 +1777,7 @@ void captureTagsFacts( TSQueryCursor* cursor, const LangEntry& le, std::uint32_t
             // defBodyNodeOf = the `body:` field, PLUS the macro-edges round's one addition: a #define's
             // replacement text (`value:` field) is adopted as a macro symbol's body, set before the climb
             // below so the climb is skipped for macros.
-            TSNode body    = le.lang == Lang::Elixir ? elixirBody( roleNode, src ) : defBodyNodeOf( roleNode, kind );
+            TSNode body    = le.lang == Lang::Elixir ? elixirBody( roleNode, src ) : le.lang == Lang::Nix ? nixBody( roleNode ) : defBodyNodeOf( roleNode, kind );
             // LB-E testmacroblock: the def is TWO SIBLING nodes (see testMacroBlockPartsOf) — adopt the
             // sibling compound_statement as the body and the title literal as the name BEFORE the shared
             // span/complexity code below. The span's endByte and the loc row window are extended past
@@ -1913,7 +1926,7 @@ void captureTagsFacts( TSQueryCursor* cursor, const LangEntry& le, std::uint32_t
                 const std::uint32_t endRow   = ts_node_end_point( spanThroughBody ? body : defNode ).row;   // LB-E: rows through the sibling block
                 d.loc = ( endRow >= startRow ) ? ( endRow - startRow + 1u ) : 1u;
             }
-            d.params    = fnOrMethod ? ( le.lang == Lang::Elixir ? elixirParams( defNode, src ) : countParams( defNode ) ) : std::uint16_t( 0 );
+            d.params    = fnOrMethod ? ( le.lang == Lang::Elixir ? elixirParams( defNode, src ) : le.lang == Lang::Nix ? nixParams( defNode ) : countParams( defNode ) ) : std::uint16_t( 0 );
             // LB-E: a testmacroblock's parameter surface is the MACRO's business, not visible here — claim
             // inexact so the resolver's arity narrowing never trusts params=0 on a test-title symbol.
             d.arityExact = ( fnOrMethod && !isTestMacroBlock ) ? std::uint8_t( cc_paramArityExact( defNode, le.lang, kind ) ? 1 : 0 ) : std::uint8_t( 0 );   // B2.2

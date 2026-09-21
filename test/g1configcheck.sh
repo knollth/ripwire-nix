@@ -191,7 +191,7 @@ grep -q 'max_total_time=' "$RUNNER" && grep -q 'max_len=65536' "$RUNNER" && grep
     && ok "fuzz runner is time-, input-, and concurrency-bounded" || no "bounded fuzz runner contract missing"
 
 seedCount="$( find "$ROOT/test/fuzz/seeds" -mindepth 2 -maxdepth 2 -name valid | wc -l | tr -d ' ' )"
-if [ "$seedCount" = 23 ]; then ok "all 23 grammars have valid seeds"; else no "expected 23 grammar seeds, found $seedCount"; fi
+if [ "$seedCount" = 24 ]; then ok "all 24 grammars have valid seeds"; else no "expected 24 grammar seeds, found $seedCount"; fi
 
 # ── the nightly workflow: the TSan build runs against main once a day, and nothing about it can quietly widen ─────────
 # ThreadSanitizer is not a per-PR leg (owner decision, 2026-09-17): it runs from .github/workflows/nightly.yml. These

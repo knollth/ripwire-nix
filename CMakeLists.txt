@@ -157,7 +157,7 @@ if(RIPWIRE_LTO)
   # The VARIABLE, set HERE — before the first add_executable/add_library and before FetchContent pulls
   # the vendored tree-sitter subproject in. CMAKE_INTERPROCEDURAL_OPTIMIZATION seeds the property on
   # targets created AFTER it, so this placement (and only this placement) reaches all three groups that
-  # matter: our C++, the twenty-two C grammar objects, and the tree-sitter core in its own subdirectory.
+  # matter: our C++, the twenty-six C grammar objects, and the tree-sitter core in its own subdirectory.
   # Cross-language is the point — the accessors we want inlined are C, the loop calling them is C++.
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
   message(STATUS "RIPWIRE_LTO: ON — link-time optimization across our code and the vendored C (slower link, see docs/OPTREMARKS.md F1)")
@@ -282,6 +282,7 @@ set(_ripwire_query_names
   gdscript
   kotlin
   lua
+  nix
   objc
   php
   python
@@ -552,6 +553,16 @@ add_ts_grammar(kotlin https://github.com/fwcd/tree-sitter-kotlin.git 1852ea17b7f
 # gaps, NOT patched here (guardrail G3 — this repo carries no grammar fork).
 add_ts_grammar(gdscript https://github.com/PrestonKnopp/tree-sitter-gdscript.git c5c8fa4861b5a4f04a7e60d97587fc3b6cc5639e)  # master, ABI 14
 
+# Nix (.nix): the nix-community grammar (tree-sitter-nix), the one the editors standardize on. Ships a
+# scanner.c (string/path fragment + dollar-escape dispatch — stateless, like toml's) which the macro
+# picks up. ABI 15, inside [MIN_COMPATIBLE, LANGUAGE_VERSION]=[13,15] for the vendored core.
+# PARSE RATE MEASURED, not assumed, before vendoring (STEP 0 of prompts/add-a-language.md): 100.00% of
+# 43,338 real .nix files parse with zero ERROR/MISSING nodes — the full nixpkgs tree, measured from its
+# read-only store copy. The language's blind spots (dynamic call resolution, value-dependent and
+# <NIX_PATH> imports) are disclosed in queries/nix/tags.scm and test/nixcheck.sh; they are properties of
+# the language, NOT grammar gaps — no grammar fork, no patch (guardrail G3).
+add_ts_grammar(nix https://github.com/nix-community/tree-sitter-nix.git 17f290c8b5104d9aba8a1ba7383a2ca83c3d14c4)  # master, ABI 15
+
 # PHP (.php): the official tree-sitter org grammar. Like TypeScript this repo hosts TWO sub-grammars
 # in subdirectories — `php/` (the full one: HTML text interleaved with `<?php … ?>` blocks) and
 # `php_only/` (no surrounding text). ONLY `php/` is vendored and built: a real .php file in a real
@@ -619,6 +630,7 @@ set(RIPWIRE_TS_OBJECTS
   $<TARGET_OBJECTS:ts_kotlin>
   $<TARGET_OBJECTS:ts_gdscript>
   $<TARGET_OBJECTS:ts_elixir>
+  $<TARGET_OBJECTS:ts_nix>
   $<TARGET_OBJECTS:ts_php>
   $<TARGET_OBJECTS:ts_toml>
   $<TARGET_OBJECTS:ts_yaml>
@@ -853,7 +865,7 @@ endif()
 set(RIPWIRE_GRAMMAR_TARGETS
   ts_cpp ts_python ts_go ts_rust ts_tsts ts_tstsx ts_swift ts_objc
   ts_javascript ts_bash ts_java ts_ruby ts_json ts_toml ts_yaml ts_csharp ts_c ts_cuda ts_markdown
-  ts_php ts_lua ts_elixir ts_dart ts_kotlin ts_gdscript)
+  ts_php ts_lua ts_elixir ts_dart ts_kotlin ts_gdscript ts_nix)
 set(RIPWIRE_RUNTIME_COMPILE_TARGETS ripwire_probe ripwire tree-sitter ${RIPWIRE_GRAMMAR_TARGETS})
 set(RIPWIRE_RUNTIME_LINK_TARGETS ripwire_probe ripwire)
 # The C++ subset of the compile list — the only targets that include a C++ standard library at all, and so
@@ -1283,6 +1295,7 @@ if(RIPWIRE_FUZZ)
   add_ripwire_fuzzer(lua        tree_sitter_lua        lua)
   add_ripwire_fuzzer(kotlin     tree_sitter_kotlin     kotlin)
   add_ripwire_fuzzer(gdscript   tree_sitter_gdscript   gdscript)
+  add_ripwire_fuzzer(nix        tree_sitter_nix        nix)
   add_custom_target(ripwire_fuzzers DEPENDS ${RIPWIRE_FUZZ_TARGETS})
 
   # ---- reader fuzzers: ripwire's OWN parsers of bytes it did not create (test/fuzz/readers/) ----

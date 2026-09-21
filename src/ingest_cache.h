@@ -249,7 +249,14 @@ constexpr std::uint32_t kCacheVersion = 24;           // 24: RawRef gains `viaAr
                                                       //    (Py `pkg.mod`, TS `./x`, Rust `crate::a::b`/`mod:x`) —
                                                       //    a target FORMAT change → old caches must be rejected.
                                                       // 4: Include gained a `bool isAngle` (quote/angle) field
-constexpr std::uint32_t kParserVer    = 119;          // bump on any grammar/.scm/extraction change
+constexpr std::uint32_t kParserVer    = 120;          // bump on any grammar/.scm/extraction change
+                                                      // 120 = 2026-09-21 (Nix, test/nixcheck.sh): a
+                                                      //    twenty-sixth grammar (.nix) whose defs and call edges
+                                                      //    are extracted through queries/nix/tags.scm with the
+                                                      //    body/param hooks in ingest_nix.h. The extracted SET
+                                                      //    grows on any tree holding Nix, so v119 blobs must be
+                                                      //    rejected. quality.h kIngestParserVerMirror bumped in
+                                                      //    the SAME commit.
                                                       // 119 = 2026-09-20 (T13/fix3): queries/java/tags.scm
                                                       //   and queries/kotlin/tags.scm's import captures were
                                                       //   @reference.call — an import is a dependency edge,
@@ -261,9 +268,9 @@ constexpr std::uint32_t kParserVer    = 119;          // bump on any grammar/.sc
                                                       //   @reference.import (RefRole::Import), the same
                                                       //   mechanism C++'s `using ns::name;` already uses —
                                                       //   still a role="import" --uses site, never a call-
-                                                      //   graph edge (graph.h isResolvableCallReference is
-                                                      //   Call+Macro only). A cache written before this
-                                                      //   double-counts every JVM import as a caller.
+                                                      //    graph edge (graph.h isResolvableCallReference is
+                                                      //    Call+Macro only). A cache written before this
+                                                      //    double-counts every JVM import as a caller.
                                                       // 118 = 2026-09-19 (CodeRabbit follow-up, thread
                                                       //   4053600599: isJsxIntrinsicTagIdentifier
                                                       //   (src/ingest_names.h) tested `!isUppercase`, which kept

@@ -104,6 +104,7 @@ inline constexpr LangTokenRow kLangTokenRows[] = {
     { "dart",       Lang::Dart       },
     { "kotlin",     Lang::Kotlin     },
     { "gdscript",   Lang::GDScript   },
+    { "nix",        Lang::Nix        },
 };
 
 /// Parse a supported language token; assign out only on success and otherwise return false.
@@ -162,6 +163,7 @@ inline constexpr LintExtRow kLintExtRows[] = {
     { ".dart", Lang::Dart },
     { ".kt", Lang::Kotlin },
     { ".gd", Lang::GDScript },
+    { ".nix", Lang::Nix },
 };
 
 /// Classify a path by its supported extension, returning Unknown when no extension matches.
@@ -257,6 +259,9 @@ inline bool dependencyCapable( Lang lang ) noexcept
             return true;
         case Lang::Dart:   // no import capture yet — see the DART paragraph above
         case Lang::GDScript:   // no preload/load capture yet — the same paragraph
+        case Lang::Nix:        // no import capture yet — `import ./x.nix` is the next round
+                               // (prompts/add-a-language.md STEP 5); claiming it now would make
+                               // the dep_files= denominator lie
         case Lang::Json: case Lang::Toml: case Lang::Yaml: case Lang::Markdown: case Lang::Unknown:
             return false;
     }
@@ -305,6 +310,7 @@ inline DepDialect dependencyDialect( Lang lang ) noexcept
         case Lang::Elixir:                              return DepDialect::Elixir;
         case Lang::Dart:                                // not dependency-capable (dependencyCapable's DART paragraph)
         case Lang::GDScript:                            // not dependency-capable (the same paragraph)
+        case Lang::Nix:                                 // not dependency-capable yet (the same paragraph)
         case Lang::Json: case Lang::Toml: case Lang::Yaml: case Lang::Markdown: case Lang::Unknown:
                                                         return DepDialect::None;
     }

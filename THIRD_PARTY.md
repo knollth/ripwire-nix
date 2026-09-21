@@ -71,6 +71,7 @@ is why the sizes are what they are — `parser.c` is one big static table, not h
 | `deps/markdown` | tree-sitter-markdown (v0.5.3; the block grammar `tree-sitter-markdown/` only) | Matthias Deiml | MIT | `f969cd3ae3f9fbd4e43205431d0ae286014c05b5` | https://github.com/tree-sitter-grammars/tree-sitter-markdown | 2.1 MB |
 | `deps/kotlin` | tree-sitter-kotlin (ABI 14) | fwcd | MIT | `1852ea17b7f60fb3f9d84e0b1555d56b46b39fb1` | https://github.com/fwcd/tree-sitter-kotlin | 32 MB |
 | `deps/gdscript` | tree-sitter-gdscript (master) | Preston Knopp | MIT | `c5c8fa4861b5a4f04a7e60d97587fc3b6cc5639e` | https://github.com/PrestonKnopp/tree-sitter-gdscript | 2624 KB |
+| `deps/nix` | tree-sitter-nix (master) | nix-community (cstrahan) | MIT | `17f290c8b5104d9aba8a1ba7383a2ca83c3d14c4` | https://github.com/nix-community/tree-sitter-nix | 704 KB |
 | `deps/doctest` | doctest (v2.4.12) | Viktor Kirilov | MIT | `1da23a3e8119ec5cce4f9388e91b065e20bf06f5` | https://github.com/doctest/doctest | 0.7 MB |
 
 Notes:

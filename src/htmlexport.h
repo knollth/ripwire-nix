@@ -2166,6 +2166,9 @@ inline constexpr const char* kLangColors[] = {
                  // Lua's #4b8bbe and sits inside a band already holding Cpp/TypeScript/Go/C/Php. Teal is
                  // unused in this palette, so it stays separable on the #111 canvas — the same reasoning
                  // the Elixir and Kotlin rows above applied to the purples.
+    "#5277c3",   // Nix — the NixOS logo blue, THE brand hue of the language and unused here at full
+                 // strength; #4a90d9/#2d79c7/#68217a are nearby but lighter/greener, so it stays
+                 // separable on the #111 canvas.
 };
 inline constexpr std::size_t kLangColorCount = sizeof( kLangColors ) / sizeof( kLangColors[0] );
 // NB the bound names the LAST enumerator, so appending one to Lang leaves this assert TRUE and silently

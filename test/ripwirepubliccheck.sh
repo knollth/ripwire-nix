@@ -1041,8 +1041,8 @@ tracked = set(paths)
 # roots are ENUMERATED, not globbed off disk, so pruning a dependency too far still fails the arm
 # instead of quietly shrinking the search.
 _deps = 'third_party/deps'
-_grammars = ('bash', 'c', 'cpp', 'csharp', 'cuda', 'dart', 'elixir', 'gdscript', 'go', 'java', 'javascript', 'json',
-             'kotlin', 'objc', 'python', 'ruby', 'rust', 'swift', 'toml', 'yaml')
+_grammars = ('bash', 'c', 'cpp', 'csharp', 'cuda', 'dart', 'elixir', 'gdscript', 'go', 'java', 'javascript', 'json', 'kotlin', 'nix',
+             'objc', 'python', 'ruby', 'rust', 'swift', 'toml', 'yaml')
 roots = (['src', 'src/infra', 'third_party', '']                        # our targets
          + [f'{_deps}/tree_sitter/lib/include']                         # PUBLIC, given to every target
          + [f'{_deps}/tree_sitter/lib/src', f'{_deps}/tree_sitter/lib/src/wasm']   # tree-sitter PRIVATE

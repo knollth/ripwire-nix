@@ -58,7 +58,8 @@ struct LangEntry
 // Order does not matter (linear scan); kept grouped by language for readability.
 // The extent is EXACT, not headroom: it was 32 with 32 rows, .toml made it 33, .pyi made it 34 and the
 // .yml/.yaml pair made it 36, the .php/.phtml/.lua trio made it 40, the .ex/.exs pair made it 42, the
-// .rst/.adoc/.org/.mdx prose quartet made it 46, .dart made it 47, .kt made it 48, .hxx made it 49 and .gd made it 50. Sizing it to the row count is what
+// .rst/.adoc/.org/.mdx prose quartet made it 46, .dart made it 47, .kt made it 48, .hxx made it 49, .gd made it 50 and
+// .nix made it 51. Sizing it to the row count is what
 // makes
 // `std::array<bool, kLangTable.size()> present` (the grammar-prewarm set,
 // below) exact too, and it turns "added a row and forgot the extent" into a compile error rather than a
@@ -87,7 +88,7 @@ struct LangEntry
 // the latter a list item), so those files carry the file-level node alone and serve as ONE whole-file
 // unit. A heading detector per format is a later lane with its own measurement. `.mdx` is markdown with
 // JSX, which the block grammar already reads as html blocks (opaque). Gate: test/textdocscheck.sh.
-constexpr std::array<LangEntry, 50> kLangTable = {{
+constexpr std::array<LangEntry, 51> kLangTable = {{
     { ".cpp",  Lang::Cpp,        &tree_sitter_cpp,        "cpp"        },
     { ".cc",   Lang::Cpp,        &tree_sitter_cpp,        "cpp"        },
     { ".cxx",  Lang::Cpp,        &tree_sitter_cpp,        "cpp"        },
@@ -196,6 +197,10 @@ constexpr std::array<LangEntry, 50> kLangTable = {{
     // function/var rather than needing an enclosing class node. `.tscn`/`.tres`/`.gdshader` are NOT
     // indexed: they are scene/resource/shader formats with their own grammars, and none is vendored here.
     { ".gd",   Lang::GDScript,   &tree_sitter_gdscript,   "gdscript"   },   // GDScript — class/func/var/const/enum/signal defs + calls
+    // Nix (.nix): a file is one expression — attrset/let bindings holding named lambdas; calls are
+    // `ident args` applies. The load-bearing structure is FILE-level: `import ./x.nix` (queries/nix/
+    // tags.scm and test/nixcheck.sh carry the dynamic-resolution and NIX_PATH floors).
+    { ".nix",  Lang::Nix,        &tree_sitter_nix,        "nix"        },   // Nix — attr/let function defs + applies + file imports
     // Kotlin: `.kts` (Gradle script DSL) is deliberately NOT a row here yet — its trailing-lambda
     // density needs its own parse-quality probe before riding this grammar; `.kt` only for now.
     { ".kt",   Lang::Kotlin,     &tree_sitter_kotlin,     "kotlin"     },   // Kotlin — classes/objects/interfaces/functions + calls; JVM-bridged to Java (graph.h langCompatible)
