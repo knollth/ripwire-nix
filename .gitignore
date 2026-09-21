@@ -54,3 +54,7 @@ __pycache__/
 # corpus files keep their upstream licences (SWE-Explore's dataset is CC-BY-NC-ND), so pinned +
 # fetched locally, never committed or redistributed
 /bench/external/
+
+# nix build outputs
+/result
+/result-*
