@@ -68,9 +68,9 @@ HOT_FILES = (
     "src/lexical.h",              # tokenizer
 
     # ── the ingest translation unit ──────────────────────────────────────────────────────────────
-    # One TU, seventeen files since the split. It is the overwhelming majority of both a cold and a
+    # One TU, eighteen files since the split. It is the overwhelming majority of both a cold and a
     # warm run, so most of its sections are hot — that is a fact about where this tool spends its
-    # time, not a lapsed rule. The six that are NOT hot are in COLD_FILES, each with its number.
+    # time, not a lapsed rule. The seven that are NOT hot are in COLD_FILES, each with its number.
     "src/ingest.cpp",             # the TU anchor: the ingest() driver and its phase calls. Its own body is small now — the phases live in the sections below
     "src/ingest.h",               # isSkippedCrawlDir / looksBinary / isNonTextExtension — inline predicates run for EVERY crawled path
     "src/ingest_crawl.h",         # the crawl and its git-ignore probe (~26% warm), plus readFile's fopen+read (~4% cold) — both per path
@@ -111,6 +111,10 @@ COLD_FILES = (
       "per-node tree-sitter walk — is covered by ingest_binds.h and ingest_relations.h, which run for every grammar." ),
     ( "src/ingest_elixir.h",
       "Elixir-specific capture helpers: per node, but for one grammar with a small corpus share. Same argument as ingest_jsimports.h above." ),
+    ( "src/ingest_nix.h",
+      "Nix-specific capture helpers: per node, but for one grammar. On a general corpus .nix is a rounding error, and the one corpus where it is not — nixpkgs, "
+      "43,338 .nix files, all parsing clean (docs/EVALS.md) — spends its time in the tree-sitter grammar and the shared capture loop, not in this section's "
+      "helpers. Same argument as ingest_elixir.h above." ),
 
     # ── the other translation units under src/ ────────────────────────────────────────────────────
     ( "src/main.cpp",
