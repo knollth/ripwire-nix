@@ -304,7 +304,7 @@ while a lambda-valued binding stays a callable at any depth, the Lua `M.f` prece
 inside a declined local attributes to the enclosing function, the honest caller). A bare `import`
 head is declined as a call by the same hook — it is a file dependency, not a symbol named import.
 
-File dependencies (`kParserVer` 120): Nix's two directive spellings are `import ./x.nix` and the
+File dependencies (`kParserVer` 121): Nix's two directive spellings are `import ./x.nix` and the
 module system's `imports = [ ./a ./b.nix ]` list. `ingest_nix.h`'s `nixPrepare` walks the whole
 tree (bounded, degrading at the shared depth bound) and emits both as Include records sited on the
 PATH node; `resolve.h`'s `resolveNixImport` is the C quote-include rule — join the importer's
@@ -324,7 +324,7 @@ real `.nix` files parse clean — the full nixpkgs tree, measured from its read-
 No grammar gap is patched (guardrail G3); the tree is vendored at
 `17f290c8b5104d9aba8a1ba7383a2ca83c3d14c4`.
 
-Nix extraction landed at revisions 119 (grammar and bindings) and 120 (file dependencies) —
+Nix extraction landed at revisions 120 (grammar and bindings) and 121 (file dependencies) —
 `kParserVer` in `src/ingest_cache.h`, mirrored by `kIngestParserVerMirror` in `src/quality.h`;
 snapshot scheme is unchanged.
 

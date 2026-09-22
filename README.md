@@ -682,7 +682,16 @@ to do with it.** Two shapes get the most out of it, and one gets nothing.
 <details>
 <summary>The three controls that decide what it costs — <b>a budget</b> (<code>--token-budget</code> / <code>--top-k</code>), <b>routing</b> (<code>--help-task</code>), and <b>the skills</b> that teach an agent when <i>not</i> to reach for it</summary>
 
-1. **A budget.** `--token-budget=N` caps the bundle; `--top-k=N` caps the rows. Unbudgeted `--for` returns
+1. **A budget.** `--token-budget=N` caps the bundle; `--top-k=N` caps the rows **of the default map,
+   `--query`, `--format=candidates`, `--recall` and `--graph-query` — it does not shape plain `--for`**.
+   On `--for`, a *positive, explicit* `--top-k` is read by nothing: the run prints a stderr note
+   (`--top-k is not read by --for`) and still emits the full bundle. Two neighbours of that shape are
+   different and neither warns: `--for --format=candidates --top-k=N` *does* consume the flag (the
+   candidate export composes with it and caps the rows), and `--for --top-k=0` is refused outright by the
+   payload-only guard (`--top-k=0` needs a payload verb), not warned-and-emitted. Narrow plain `--for`
+   with its own arguments instead — `--signatures-only`
+   (drop the auto-bodies), `--token-budget=N` (shapes the bundle to fit), `--detail=N` (full bodies for
+   just the top N). Unbudgeted `--for` returns
    a rich terminal bundle by design — right when it ends the question, wasteful when it does not.
 2. **Routing.** `ripwire . --help-task="<task>"` names the ONE command the task actually wants, and
    abstains when the evidence is thin. It is advice, it never runs anything. An answer of "just grep
@@ -690,6 +699,27 @@ to do with it.** Two shapes get the most out of it, and one gets nothing.
 3. **The skills.** `skills/install.sh` teaches an agent *when* to reach for which verb. Without them
    an agent has 175 flags and no map of which moment each is for, and it will reach for the map every
    time — including the times it should not.
+</details>
+
+<details>
+<summary>The invocations first-time users get wrong — <b>WRONG → RIGHT</b>, each row a real failure reported from the field</summary>
+
+| WRONG | RIGHT | why |
+|---|---|---|
+| `ripwire . --for="…" --top-k=5` | `ripwire . --for="…" --signatures-only` (or `--token-budget=N`, `--detail=N`) | `--top-k` is inert on `--for`: the run warns on stderr and emits the full bundle anyway, so the agent *believes* it narrowed the output and did not. |
+| `ripwire . --query="…"` as the default lens | `ripwire . --for="…"` | `--query` is the raw BM25 ranking — the binary's own help calls it debug and says "use --for". It is the right tool for hunting a vocabulary, the wrong default for a task. |
+| `ripwire . --expand=SYM` where SYM is an **ambiguous** bare name | `ripwire . --expand=SYM --top-k=0` (or name it exactly: `--expand=FILE:NAME`) | A multi-match name keeps the ranked map — there IS something to disambiguate — so ~9K est_tokens of map ride along with the bodies. An **unambiguous** single match already defaults to `--top-k=0` on its own (disclosed as `topk_default="0"`); no flag needed there. |
+| `--callers=<route handler>` expecting routes | find the URL in the project's own docs (e.g. a feature map), then `--expand` the handler | Framework route handlers have no callers in the graph — the decorator reaches them, not project code. Empty `--callers` on a handler is the design, not a bug. |
+| `ripwire <dir-of-repos> …` (ONE root that happens to contain checkouts) | `cd` into ONE checkout first | Nothing refuses this: the crawl silently walks the nested repos and merges them into one corpus, so you pay for a map of everything and rank across unrelated codebases. Distinct from the real multi-root feature, which is N **explicit** positional roots (`ripwire dir1 dir2 … <verb>`, 2–16 checkouts merged on purpose). |
+
+**What ripwire does not replace** — reach for `grep`/`read` here even when a verb looks close:
+
+| still use grep/read for | why |
+|---|---|
+| route → handler lookup from a URL | ripwire ranks symbols, not URLs; it does not know your routes |
+| templates, i18n catalogs, SQL migrations | not call-graph territory |
+| one exact string in one file you can already name | `--grep=TERM` works, but `rg` is fine too — and the map is a fixed cost you did not need |
+| UX flow through frontend event handlers | the JS is in the graph, but the flow needs line context, not a ranking |
 </details>
 
 <details>
@@ -1125,7 +1155,14 @@ rather than blurring it:
   among the metrics shown to track measured cognitive load directly (Peitek, Apel, Parnin, Brechmann &
   Siegmund, ICSE 2021, [doi:10.1109/ICSE43902.2021.00056](https://doi.org/10.1109/ICSE43902.2021.00056)) —
   `--readability` emits volume and stops there; difficulty and effort are computed nowhere in this
-  tree.
+  tree. **Unvalidated against human judgement, stated plainly rather than assumed:** this is a
+  deterministic ordering signal, not a checked one. Our own proxy measurement — 484 matched
+  before/after function pairs mined from 80 refactor/simplify/cleanup commits in this repository's own
+  history — found the lens agrees with the commit's implied readability direction on only 30.2% of
+  pairs, worse than chance. That is a construct-validity finding about the ordering claim, not a bug in
+  the arithmetic (a separate self-consistency check confirms the formula computes exactly what it says
+  it computes); the lens itself is unchanged pending a proper human study, and `--help=--readability`
+  carries the same caveat where a CLI reader meets it.
 - **`--naming-consistency`** is the *lexical* family's one exception to "evidence, never advice": every
   other lens in this panel tells you WHAT is wrong, never a computed fix. Case-style consistency is
   the one property with a corpus-derivable answer — on this repository's `src/`, camelCase is the
@@ -2027,7 +2064,7 @@ a runtime call with no syntax to read, so a Lua corpus reports no inheritance ed
 implied), **Dart** (`.dart` — classes, mixins, extensions, enums, typedefs, functions, methods, getters/setters; `recv.m()`, `recv?.m()` and cascade `..m()` invocations are edges. Two stated floors: named constructors and factories index under the CLASS name, so `C()`, `C.seeded()` and `factory C.fromA()` are overloads of `C`; and `noSuchMethod` dynamic dispatch names its callee at run time. The grammar makes a function body a SIBLING of its signature rather than a child, so the definition span is extended through it at capture time — without that, every call in a body attributes to the enclosing class), **Elixir** (`.ex`/`.exs` — nested modules, structs, protocols and implementations, functions, macros, guards,
 delegates, types, callbacks, attributes and literal ExUnit tests; module/name/arity resolution with lexical aliases,
 filtered imports, default arguments, captures and pipes; see the
-[static-analysis limits](docs/ARCHITECTURE.md#elixir-extraction)), **Kotlin** (`.kt` — classes, objects, companion objects, interfaces, enum classes and functions, extension functions included; bare and navigation calls and constructor delegation are call-graph edges; an import is a dependency edge only (role="import" on `--uses`, never a `--callers`/`--impact` edge — T13/fix3, 2026-09-20). Kotlin and Java share one call graph, and a call reaches the other language only when its own defines no candidate of that name, so adding `.kt` files never moves a Java edge. Stated floors: an explicit receiver (`A.f()`) does not narrow candidates; a multiplatform `expect`/`actual` type pair is two candidates; `.kts` is not indexed; and a file nesting string templates past 128 levels is refused and listed by `--skipped` — see the [Kotlin limits](docs/ARCHITECTURE.md#kotlin-extraction)), **GDScript** (`.gd` — a Godot file is a class body: `class_name` names it and its file-scope `func`/`var` are its members, with inner classes, constants, enums and their members, signals and call edges; `preload`/`load` produce no dependency edge yet, and `.tscn`/`.tres`/`.gdshader` are not indexed — see the [GDScript notes](docs/ARCHITECTURE.md#gdscript-extraction)), **Nix** (`.nix` — a file is one expression: every top-level `name = value` binding is a module symbol, a lambda-valued one is a function, and `f x`/`lib.f x` applies are call edges. Stated floors: `callPackage` and other runtime dispatch bind no name at the syntax level; `import` produces no dependency edge yet; data bindings nested inside a mid-function lambda are locals, not module symbols — see the [Nix notes](docs/ARCHITECTURE.md#nix-extraction)), Bash, Go, Rust, Swift, C#, JSON + TOML + YAML (config keys — a
+[static-analysis limits](docs/ARCHITECTURE.md#elixir-extraction)), **Kotlin** (`.kt` — classes, objects, companion objects, interfaces, enum classes and functions, extension functions included; bare and navigation calls and constructor delegation are call-graph edges; an import is a dependency edge only (role="import" on `--uses`, never a `--callers`/`--impact` edge — T13/fix3, 2026-09-20). Kotlin and Java share one call graph, and a call reaches the other language only when its own defines no candidate of that name, so adding `.kt` files never moves a Java edge. Stated floors: an explicit receiver (`A.f()`) does not narrow candidates; a multiplatform `expect`/`actual` type pair is two candidates; `.kts` is not indexed; and a file nesting string templates past 128 levels is refused and listed by `--skipped` — see the [Kotlin limits](docs/ARCHITECTURE.md#kotlin-extraction)), **GDScript** (`.gd` — a Godot file is a class body: `class_name` names it and its file-scope `func`/`var` are its members, with inner classes, constants, enums and their members, signals and call edges; `preload`/`load` produce no dependency edge yet, and `.tscn`/`.tres`/`.gdshader` are not indexed — see the [GDScript notes](docs/ARCHITECTURE.md#gdscript-extraction)), **Nix** (`.nix` — a file is one expression: every top-level `name = value` binding is a module symbol, a lambda-valued one is a function, and `f x`/`lib.f x` applies are call edges; `import ./x.nix` and the module system's `imports = [ … ]` are file-dependency edges on `--deps`, resolved by the C quote-include rule. Stated floors: `callPackage` and other runtime dispatch bind no name at the syntax level; `<nixpkgs>` angle spaths and missing targets are captured and unresolved; data bindings nested inside a mid-function lambda are locals, not module symbols — see the [Nix notes](docs/ARCHITECTURE.md#nix-extraction)), Bash, Go, Rust, Swift, C#, JSON + TOML + YAML (config keys — a
 `[tool.ruff.lint]` table is one symbol under its full dotted name, and
 `pyproject.toml`/`Cargo.toml`/CI workflows become greppable), and **Markdown** (`.md`/`.markdown` —
 the DOC tier: every heading, ATX or setext, is a section symbol whose span runs to the next
@@ -2168,7 +2205,7 @@ same renderer. One computation has one output shape.
 
 | Item | Requirement |
 | --- | --- |
-| Operating system | macOS (arm64 or x86-64) or Linux (arm64 or x86-64). On Windows, use WSL2. |
+| Operating system | macOS (arm64 or x86-64) or Linux (arm64 or x86-64). Native Windows x64 **builds** with clang-cl — CI builds it on `windows-latest` every full matrix and smoke-tests the binary (`--version`, `ctest`, a real crawl, the two-run byte-identical contract, well-formed XML); the 647-gate suite does not run there yet, so treat it as a build, not a validated platform. MSVC `cl.exe` does not build yet — the tree uses GCC/Clang language extensions (`asm volatile` barriers, `__builtin_*`, `[[gnu::…]]`) that need a portability seam. No prebuilt Windows binary is published; WSL2 remains the supported way to RUN it on a Windows machine. |
 | Prebuilt Linux floor | RHEL 8 or later (glibc 2.28) |
 | Prebuilt macOS floor | macOS 14 or later, Apple silicon. 0.6.1 is the last release with an Intel macOS binary; on an Intel Mac, pin `RIPWIRE_VERSION=v0.6.1` or build from source. |
 | x86-64 floor | x86-64-v3 (Intel Haswell, 2013, or later), for a prebuilt binary and a source build alike |
@@ -2559,7 +2596,7 @@ python3 test/pargates.py . ./build/ripwire -j 6
 A new gate script must be added to `test/regression.sh` in the same change. The gate
 `test/manifestcheck.sh` enforces this rule.
 
-Another gate derives the cap inventory. The tool has 221 compile-time caps and 7 ranking parameters.
+Another gate derives the cap inventory. The tool has 222 compile-time caps and 7 ranking parameters.
 `docs/LIMITS.md` lists each cap, its value, and whether the file discloses a truncation when the cap
 fires, and `python3 docs/limits_build.py --check` proves that list against `src/`. `docs/TUNING.md`
 lists the measured cost of each cap.
@@ -2668,7 +2705,7 @@ file, and one row in the extension table.
 | Rust | `.rs` | Scoped, turbofish, and `Self::` calls resolve in a precise tier. |
 | Bash | `.sh`, `.bash` | |
 | GDScript | `.gd` | A file is a class body: `class_name` names it and file-scope `func`/`var` are its members. A signal is indexed as a member. `preload`/`load` produce no dependency edge. `.tscn`, `.tres`, and `.gdshader` are not indexed. |
-| Nix | `.nix` | A file is one expression: top-level bindings are module symbols and lambda-valued ones are functions. Calls through `callPackage` and other runtime dispatch are a stated floor. `import ./x.nix` produces no dependency edge yet. |
+| Nix | `.nix` | A file is one expression: top-level bindings are module symbols and lambda-valued ones are functions. Calls through `callPackage` and other runtime dispatch are a stated floor. `import ./x.nix` and `imports = [ … ]` are file-dependency edges on `--deps` (C quote-include rule); `<nixpkgs>` spaths and missing targets resolve to nothing, disclosed in place. |
 | JSON | `.json` | Config keys become symbols. The lane emits no call edges. |
 | TOML | `.toml` | A table header is one symbol. Keys below it are one level down. |
 | YAML | `.yml`, `.yaml` | Mapping depth 2 is the cut. Sequence levels are transparent. |
