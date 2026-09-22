@@ -65,19 +65,35 @@ bashScanCount="$( grep -c 'fun:scan' "$CMAKE" )"
 # planted `src:*/bits/basic_string.tcc`.
 occurrences(){ grep -o -- "$1" "$CMAKE" | wc -l | tr -d ' '; }
 scannerUnsignedSectionCount="$( occurrences '\[unsigned-integer-overflow\]' )"
-# M1/N1: the file-scoped rules in the whole build — EXACTLY THREE, all libstdc++ headers carrying the same
+# M1/N1: the file-scoped rules in the whole build — FOUR, all libstdc++ headers carrying the same
 # deliberate-wrap idiom, all under the one `[unsigned-integer-overflow]` section. Those loops wrap past zero
 # by design (`for (++__size; __size-- > 0;)`, and `_S_compare`'s `__n1 - __n2` in size_type), which G1's
 # Clang-only `integer` group flags and -fno-sanitize-recover=all turns into a hard abort. The first real
 # Linux G1 run died at string_view.tcc:124 from rw::lowerExtensionOf (M1); the re-smoke then died at
 # basic_string.h:490 (_S_compare, reached from a plain std::string operator<= in a sort comparator) and
 # basic_string.tcc:689 (the find/rfind twin) — N1. libc++ has no such wrap, so macOS never saw any of them.
+# The FOURTH is the same _S_compare idiom after GCC 16 moved basic_string_view's copy out of
+# bits/string_view.tcc into the main <string_view> header (string_view:593, reached from pathInIgnoreSet's
+# string_view operator< in a binary_search comparator — the nix lane's 0.6.2 merge ASan self-run, 2026-09-22,
+# Fedora 44 clang 22 + libstdc++ 16; upstream's CI asan leg is clang but on an older libstdc++, so main
+# never saw it). GCC 16 still ships string_view.tcc, so the find/rfind entry keeps its scope and this one
+# stays one header — and the idiom's TWO halves (the unsigned wrap, then the unsigned difference narrowing
+# into difference_type) fire under TWO checks, so the header carries a rule under
+# [unsigned-integer-overflow] AND [implicit-integer-sign-change], the <format>/<print> shape.
+# The FIFTH seam is GCC 16's <bits/stl_uninitialized.h> (same run): the generic __uninitialized_fill_n
+# branch's `for (; __n--; ++__first)` counter wraps past zero on the iteration that ends the loop, reached
+# from vector::_M_fill_initialize through vector::assign. ONE rule, unsigned-integer-overflow only.
 #
 # This arm used to ban `src:` outright, because a file-scoped rule is the easy way to smuggle a whole
 # directory out of the sanitizer. The ban is kept in spirit and tightened in practice: every `src:` entry is
 # enumerated here by exact path and count, and an entry added, dropped or re-pathed reds this gate — which is
-# the whole point of an audited list. The audited set, 2026-09-08 (the std::print floor):
-#   the 3 libstdc++ STRING seams above, under [unsigned-integer-overflow] — unchanged; plus
+# the whole point of an audited list. The audited set, 2026-09-08 (the std::print floor), amended 2026-09-22
+# (the GCC 16 string_view floor):
+#   the 4 libstdc++ STRING seams (string_view.tcc, basic_string.h, basic_string.tcc, and the main
+#   <string_view> header that GCC 16 moved _S_compare into — spelled c\+\+ like the formatting seams: LLVM
+#   before 18 reads the list as a regex) — 3 + 2 = 5 rules, the moved seam carrying the idiom's two halves
+#   under [unsigned-integer-overflow] AND [implicit-integer-sign-change]; plus GCC 16's
+#   <bits/stl_uninitialized.h> fill-counter seam (1 rule) — 6 rules under [unsigned-integer-overflow]; plus
 #   the 2 libstdc++ FORMATTING seams, <format> and <print> (spelled c\+\+: LLVM before 18 reads the list as
 #   a regex), each under FOUR checks — [unsigned-integer-overflow], [implicit-integer-sign-change],
 #   [implicit-signed-integer-truncation], [implicit-unsigned-integer-truncation] — 8 rules. The first
@@ -86,17 +102,19 @@ scannerUnsignedSectionCount="$( occurrences '\[unsigned-integer-overflow\]' )"
 #   write through these two headers, so the exemption is what keeps the complete G1 stack running.
 # Section counts move with it: [implicit-integer-sign-change] and [implicit-unsigned-integer-truncation]
 # each open a second list (Swift/tree-sitter before, libstdc++ now); [implicit-signed-integer-truncation]
-# opens its first. 3 + 8 = 11 `src:` occurrences under those two sections, plus below.
+# opens its first. 6 + 8 = 14 `src:` occurrences under those two sections, plus below.
 #
 # WINDOWS FILESYSTEM SEAM (CMakeLists.txt's `if(WIN32)` block): MSVC STL _Is_drive_prefix performs a
 # defined unsigned wrap; third-party header, Windows-only. ONE more `[unsigned-integer-overflow]`
 # section (the bare header path, no function-name pattern — g1configcheck.sh bans `fun:*` outright, so
 # a Windows-only exemption stays file-scoped like every other entry here) and ONE more `src:` occurrence.
-# 11 + 1 = 12 `src:` occurrences, no more.
+# 14 + 1 = 15 `src:` occurrences, no more.
 stringViewRuleCount="$( occurrences 'src:\*/bits/string_view\.tcc' )"
 basicStringHeaderRuleCount="$( occurrences 'src:\*/bits/basic_string\.h' )"
 basicStringTccRuleCount="$( occurrences 'src:\*/bits/basic_string\.tcc' )"
-libstdcxxHeaderRuleCount="$(( stringViewRuleCount + basicStringHeaderRuleCount + basicStringTccRuleCount ))"
+stringViewHeaderRuleCount="$( occurrences 'src:\*/include/c\\\\+\\\\+/\*/string_view' )"
+libstdcxxHeaderRuleCount="$(( stringViewRuleCount + basicStringHeaderRuleCount + basicStringTccRuleCount + stringViewHeaderRuleCount ))"
+stlUninitializedRuleCount="$( occurrences 'src:\*/bits/stl_uninitialized\.h' )"
 formatRuleCount="$( occurrences 'src:\*/include/c\\\\+\\\\+/\*/format' )"
 printRuleCount="$( occurrences 'src:\*/include/c\\\\+\\\\+/\*/print' )"
 formatPrintRuleCount="$(( formatRuleCount + printRuleCount ))"
@@ -111,14 +129,16 @@ if [ "$unsignedTruncationSectionCount" = 2 ] && [ "$balanceCount" = 1 ] \
     && [ "$scannerUnsignedSectionCount" = 3 ] && [ "$bashScanCount" = 1 ] \
     && [ "$signedTruncationSectionCount" = 1 ] \
     && [ "$stringViewRuleCount" = 1 ] && [ "$basicStringHeaderRuleCount" = 1 ] && [ "$basicStringTccRuleCount" = 1 ] \
-    && [ "$libstdcxxHeaderRuleCount" = 3 ] \
+    && [ "$stringViewHeaderRuleCount" = 2 ] \
+    && [ "$libstdcxxHeaderRuleCount" = 5 ] \
+    && [ "$stlUninitializedRuleCount" = 1 ] \
     && [ "$formatRuleCount" = 4 ] && [ "$printRuleCount" = 4 ] && [ "$formatPrintRuleCount" = 8 ] \
     && [ "$filesystemRuleCount" = 1 ] \
-    && [ "$srcScopedRuleCount" = 12 ] \
+    && [ "$srcScopedRuleCount" = 15 ] \
     && ! grep -Eq 'fun:\*' "$CMAKE"; then
-    ok "dependency policy is limited to audited Tree-sitter core, Swift/bash scanner, the 3 libstdc++ string seams, the 2 formatting seams (<format>/<print>, 4 checks each) and the 1 Windows-only MSVC STL <filesystem> seam"
+    ok "dependency policy is limited to audited Tree-sitter core, Swift/bash scanner, the 4 libstdc++ string seams (incl. GCC 16's <string_view> _S_compare), GCC 16's stl_uninitialized fill-counter seam, the 2 formatting seams (<format>/<print>, 4 checks each) and the 1 Windows-only MSVC STL <filesystem> seam"
 else
-    no "sanitizer exemption policy differs from the audited list (sections uint=$scannerUnsignedSectionCount, src:-scoped=$srcScopedRuleCount of which string_view.tcc=$stringViewRuleCount basic_string.h=$basicStringHeaderRuleCount basic_string.tcc=$basicStringTccRuleCount format=$formatRuleCount print=$printRuleCount filesystem=$filesystemRuleCount; sections sign-change=$swiftSignSectionCount signed-trunc=$signedTruncationSectionCount unsigned-trunc=$unsignedTruncationSectionCount)"
+    no "sanitizer exemption policy differs from the audited list (sections uint=$scannerUnsignedSectionCount, src:-scoped=$srcScopedRuleCount of which string_view.tcc=$stringViewRuleCount basic_string.h=$basicStringHeaderRuleCount basic_string.tcc=$basicStringTccRuleCount string_view.h=$stringViewHeaderRuleCount stl_uninitialized=$stlUninitializedRuleCount format=$formatRuleCount print=$printRuleCount filesystem=$filesystemRuleCount; sections sign-change=$swiftSignSectionCount signed-trunc=$signedTruncationSectionCount unsigned-trunc=$unsignedTruncationSectionCount)"
 fi
 # MUTATION CONTROL (live, not the historical note above): plant a twelfth `src:` entry in a COPY of the file
 # and re-run the identical occurrence extraction over it — the audited count must move. A control over an

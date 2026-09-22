@@ -993,6 +993,31 @@ file(WRITE "${_ripwire_bash_ignorelist}"
 # both are absent on libc++, which is why the Apple leg never saw them and why these entries are inert
 # (but must still parse) on macOS. With the three entries in place the Linux ASan self-run exits 0 with
 # empty stderr and cachefuzzcheck's 13 UBSan arms go green.
+#
+# GCC 16 moved basic_string_view's _S_compare out of bits/string_view.tcc into the main <string_view>
+# header — the same deliberate idiom as the basic_string twin above, `__n1 - __n2` computed in size_type
+# before the signed narrowing:
+#   string_view:593:38: runtime error: unsigned integer overflow: 4 - 16
+# reached from rw::pathInIgnoreSet's binary_search comparator (src/ingest_crawl.h) via a plain string_view
+# operator< -> compare() -> _S_compare — ordinary ripwire code that cannot avoid it short of not comparing
+# string_views. Found on the nix lane's 0.6.2 merge (2026-09-22, Fedora 44, clang 22 + libstdc++ 16, full
+# G1, the lane's first ASan self-run: the upstream CI asan leg pins clang but its images carry an older
+# libstdc++, which is why main never saw it). Library-internal, intentional, not UB; absent on libc++, so
+# inert-but-parse on the Apple leg. GCC 16 still ships bits/string_view.tcc (the main header includes it),
+# so the find/rfind loops above keep their own entry and this one stays ONE header — the same narrow scope
+# as every entry here. The header is exempted under TWO checks, like <format>/<print> below: suppressing
+# only the wrap let the run advance to the SAME site's second half — `const difference_type __diff =
+# __n1 - __n2` narrows the unsigned difference into a signed type, and the integer group's
+# implicit-integer-sign-change flagged exactly that (string_view:593:33, "-12") before the run could
+# finish. Both halves are the one deliberate idiom, so the header carries both rules.
+#
+# GCC 16's <bits/stl_uninitialized.h> (same run, moments later): the generic __uninitialized_fill_n branch's
+# counter loop is spelled `for (; __n--; ++__first)` — the counter wraps past zero on the iteration that ends
+# the loop, the identical deliberate idiom the find/rfind entries above cover:
+#   stl_uninitialized.h:491:17: runtime error: unsigned integer overflow: 0 - 1
+# reached from std::vector::_M_fill_initialize (stl_vector.h:1990) through vector::assign on a
+# vector<LangEntry const*> in ordinary ripwire code. Library-internal, intentional, not UB, absent on libc++;
+# ONE header under unsigned-integer-overflow only — nothing else in the loop wraps.
 # <format> / <print> (libstdc++ 14): the formatting scanner spells "npos" as an int -1 converted to size_t
 # (c++/14/format:3903 under GCC 14.2, reached from std::print via vprint_nonunicode) — a DEFINED conversion the
 # Clang-only integer group flags as suspicious, in library code this tree does not own; exempted the way
@@ -1008,9 +1033,12 @@ file(WRITE "${_ripwire_libstdcxx_ignorelist}"
   "[unsigned-integer-overflow]\nsrc:*/bits/string_view.tcc\n"
   "src:*/bits/basic_string.h\n"
   "src:*/bits/basic_string.tcc\n"
+  "src:*/include/c\\+\\+/*/string_view\n"
+  "src:*/bits/stl_uninitialized.h\n"
   "src:*/include/c\\+\\+/*/format\n"
   "src:*/include/c\\+\\+/*/print\n"
-  "[implicit-integer-sign-change]\nsrc:*/include/c\\+\\+/*/format\n"
+  "[implicit-integer-sign-change]\nsrc:*/include/c\\+\\+/*/string_view\n"
+  "src:*/include/c\\+\\+/*/format\n"
   "src:*/include/c\\+\\+/*/print\n"
   "[implicit-signed-integer-truncation]\nsrc:*/include/c\\+\\+/*/format\n"
   "src:*/include/c\\+\\+/*/print\n"
